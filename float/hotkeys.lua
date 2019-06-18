@@ -205,7 +205,8 @@ local function build_tip(pack, style, keypressed)
 				coltxt[#coltxt + 1] = line
 				height = height + style.heights.key
 			end
-			coltxt[#coltxt + 1] = ""
+			coltxt[#coltxt + 1] = string.format('<span font="%s"></span>', style.keyfont)
+			height = height + style.heights.key
 		end
 
 		text[i] = { text = table.concat(coltxt, '\n'), height = height }
