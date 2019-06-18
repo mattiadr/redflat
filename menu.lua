@@ -26,15 +26,13 @@ local beautiful = require("beautiful")
 local timer = require("gears.timer")
 
 local setmetatable = setmetatable
-local tonumber = tonumber
 local string = string
 local ipairs = ipairs
-local pairs = pairs
 local pcall = pcall
 local print = print
 local table = table
 local type = type
-local math = math
+local unpack = unpack or table.unpack
 
 local redutil = require("redflat.util")
 local svgbox = require("redflat.gauge.svgbox")
@@ -64,10 +62,11 @@ local function default_theme()
 		svg_scale    = { false, false },
 		hide_timeout = 0,
 		select_first = true,
-		keytip       = { geometry = { width = 400, height = 400 } },
+		keytip       = { geometry = { width = 400 } },
 		color        = { border = "#575757", text = "#aaaaaa", highlight = "#eeeeee",
 		                 main = "#b1222b", wibox = "#202020",
-		                 submenu_icon = nil, right_icon = nil, left_icon = nil }
+		                 submenu_icon = nil, right_icon = nil, left_icon = nil },
+		shape        = nil
 	}
 	return redutil.table.merge(style, beautiful.menu or {})
 end
@@ -114,8 +113,7 @@ local function set_coords(_menu, screen_idx, m_coords)
 	local screen_w = s_geometry.x + s_geometry.width
 	local screen_h = s_geometry.y + s_geometry.height
 
-	local x = _menu.wibox.x
-	local y = _menu.wibox.y
+	local x, y
 	local b = _menu.wibox.border_width
 	local w = _menu.wibox.width + 2 * _menu.wibox.border_width
 	local h = _menu.wibox.height + 2 * _menu.wibox.border_width
@@ -175,11 +173,11 @@ function menu.action.exec(_menu, sel)
 	if sel > 0 then _menu:exec(sel, { exec = true }) end
 end
 
-function menu.action.back(_menu, sel)
+function menu.action.back(_menu)
 	_menu:hide()
 end
 
-function menu.action.close(_menu, sel)
+function menu.action.close(_menu)
 	menu.get_root(_menu):hide()
 end
 
@@ -268,7 +266,7 @@ end
 -- Select item
 --------------------------------------------------------------------------------
 function menu:item_enter(num, opts)
-	local opts = opts or {}
+	opts = opts or {}
 	local item = self.items[num]
 
 	if item and self.theme.auto_expand and opts.hover and item.child then
@@ -321,12 +319,12 @@ end
 -- @param args.coords Menu position defaulting to mouse.coords()
 --------------------------------------------------------------------------------
 function menu:show(args)
-	if self.wibox.visible then return end
-	local args = args or {}
+	args = args or {}
 	local screen_index = mouse.screen
+	set_coords(self, screen_index, args.coords)
+	if self.wibox.visible then return end
 
 	-- show menu
-	set_coords(self, screen_index, args.coords)
 	awful.keygrabber.run(self._keygrabber)
 	self.wibox.visible = true
 	if self.theme.select_first or self.parent then self:item_enter(1) end
@@ -380,7 +378,7 @@ end
 -- Set user hotkeys
 --------------------------------------------------------------------------------
 function menu:set_keys(keys, layout)
-	local layout = layout or "all"
+	layout = layout or "all"
 	if keys then
 		self.keys[layout] = keys
 		if layout ~= "all" then self.keys.all = awful.util.table.join(self.keys.move, self.keys.action) end
@@ -504,7 +502,7 @@ end
 -- @return table with all the properties the user wants to change
 -----------------------------------------------------------------------------------------------------------------------
 function menu.entry(parent, args)
-	local args = args or {}
+	args = args or {}
 	args.text = args[1] or args.text or ""
 	args.cmd  = args[2] or args.cmd
 	args.icon = args[3] or args.icon
@@ -517,7 +515,7 @@ function menu.entry(parent, args)
 
 	-- Set hotkey if needed
 	------------------------------------------------------------
-	local key = nil
+	local key
 	local text = awful.util.escape(args.text)
 
 	if args.key and not awful.util.table.hasitem(parent.keys, args.key) then
@@ -539,7 +537,7 @@ function menu.entry(parent, args)
 
 	-- Set left icon if needed
 	------------------------------------------------------------
-	local iconbox = nil
+	local iconbox
 	local margin = wibox.container.margin(label)
 
 	if args.icon then
@@ -551,7 +549,7 @@ function menu.entry(parent, args)
 
 	-- Set right icon if needed
 	------------------------------------------------------------
-	local right_iconbox = nil
+	local right_iconbox
 
 	if type(args.cmd) == "table" then
 		right_iconbox = svgbox(args.theme.submenu_icon, nil, args.theme.color.submenu_icon)
@@ -594,7 +592,7 @@ end
 -----------------------------------------------------------------------------------------------------------------------
 function menu.new(args, parent)
 
-	local args = args or {}
+	args = args or {}
 
 	-- Initialize menu object
 	------------------------------------------------------------
@@ -620,10 +618,10 @@ function menu.new(args, parent)
 
 	-- Create items
 	------------------------------------------------------------
-	for i, v in ipairs(args) do _menu:add(v) end
+	for _, v in ipairs(args) do _menu:add(v) end
 
 	if args.items then
-		for i, v in ipairs(args.items) do _menu:add(v) end
+		for _, v in ipairs(args.items) do _menu:add(v) end
 	end
 
 	_menu._keygrabber = function (...)
@@ -638,7 +636,8 @@ function menu.new(args, parent)
 		fg    = _menu.theme.color.text,
 		bg    = _menu.theme.color.wibox,
 		border_color = _menu.theme.color.border,
-		border_width = _menu.theme.border_width
+		border_width = _menu.theme.border_width,
+		shape = _menu.theme.shape
 	})
 
 	_menu.wibox.visible = false

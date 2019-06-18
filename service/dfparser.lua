@@ -10,7 +10,6 @@
 
 -- Grab environment
 -----------------------------------------------------------------------------------------------------------------------
-local setmetatable = setmetatable
 local io = io
 local table = table
 local ipairs = ipairs
@@ -19,6 +18,7 @@ local awful = require("awful")
 local beautiful = require("beautiful")
 
 local redutil = require("redflat.util")
+local gears = require("gears")
 
 -- Initialize tables and vars for module
 -----------------------------------------------------------------------------------------------------------------------
@@ -71,7 +71,6 @@ end
 --------------------------------------------------------------------------------
 local function all_icon_path(style)
 
-	local icon_path = {}
 	local icon_theme_paths = {}
 
 	-- add user icon theme
@@ -84,11 +83,13 @@ local function all_icon_path(style)
 	if not style.custom_only then table.insert(icon_theme_paths, '/usr/share/icons/hicolor/') end
 
 	-- seach only svg icons if need
-	local all_icon_sizes = style.scalable_only and { 'scalable' } or all_icon_sizes
+	local current_icon_sizes = style.scalable_only and { 'scalable' } or all_icon_sizes
 
 	-- form all avalible icon dirs
+	local icon_path = {}
+
 	for _, icon_theme_directory in ipairs(icon_theme_paths) do
-		for _, size in ipairs(all_icon_sizes) do
+		for _, size in ipairs(current_icon_sizes) do
 			for _, folder in ipairs(all_icon_folders) do
 				table.insert(icon_path, icon_theme_directory .. size .. "/" .. folder .. '/')
 			end
@@ -114,32 +115,33 @@ end
 -----------------------------------------------------------------------------------------------------------------------
 function dfparser.lookup_icon(icon_file, style)
 
-	local style = redutil.table.merge(default_style().icons, style or {})
-	local icon_formats = style.scalable_only and { "svg" } or { "svg", "png", "gif" }
+	style = redutil.table.merge(default_style().icons, style or {})
 
 	local df_icon
-	if style.df_icon and awful.util.file_readable(style.df_icon) then
+	if style.df_icon and gears.filesystem.file_readable(style.df_icon) then
 		df_icon = style.df_icon
 	end
 
 	-- No icon name
-	if not icon_file or icon_file == "" then return style.default_icon end
-
+	if not icon_file or icon_file == "" then return df_icon end
 
 	-- Handle full path icons
+	local icon_formats = style.scalable_only and { "svg" } or { "svg", "png", "gif" }
+
 	if icon_file:sub(1, 1) == '/' then
 		if is_format(icon_file, icon_formats) then
-			return icon_file
+			return gears.filesystem.file_readable(icon_file) and icon_file or df_icon
 		else
 			icon_file = string.match(icon_file, "([%a%d%-]+)%.")
+			if not icon_file then return df_icon end
 		end
 	end
 
 	-- Find all possible locations to search
- 	local icon_path = all_icon_path(style)
+	local icon_path = all_icon_path(style)
 
 	-- Icon searching
-	for i, directory in ipairs(icon_path) do
+	for _, directory in ipairs(icon_path) do
 
 		-- check if icon format specified and supported
 		if is_format(icon_file, icon_formats) and awful.util.file_readable(directory .. icon_file) then
@@ -289,7 +291,7 @@ end
 -----------------------------------------------------------------------------------------------------------------------
 function dfparser.menu(style)
 
-	local style = redutil.table.merge(default_style(), style or {})
+	style = redutil.table.merge(default_style(), style or {})
 
 	-- Categories list
 	--------------------------------------------------------------------------------
@@ -329,9 +331,8 @@ function dfparser.menu(style)
 	-- Sort menu items by category and create submenu
 	--------------------------------------------------------------------------------
 	local appmenu = {}
-	local catmenu = {}
 	for _, menu_category in ipairs(categories) do
-		catmenu = {}
+		local catmenu = {}
 
 		for i = #prog_list, 1, -1 do
 			if prog_list[i].categories then
@@ -349,13 +350,13 @@ function dfparser.menu(style)
 	-- Collect all items without category to "Other" submenu
 	--------------------------------------------------------------------------------
 	if #prog_list > 0 then
-		catmenu = {}
+		local catmenu = {}
 
 		for _, prog in ipairs(prog_list) do
 			table.insert(catmenu, { prog.Name, prog.cmdline, prog.icon_path })
 		end
 
-		table.insert(appmenu, { "Other", catmenu, dfparser.lookup_icon("applications-other", icon_args) })
+		table.insert(appmenu, { "Other", catmenu, dfparser.lookup_icon("applications-other") })
 	end
 
 	return appmenu
@@ -368,7 +369,7 @@ end
 -----------------------------------------------------------------------------------------------------------------------
 function dfparser.icon_list(style)
 
-	local style = redutil.table.merge(default_style(), style or {})
+	style = redutil.table.merge(default_style(), style or {})
 
 	local programs = {}
 	for _, path in ipairs(style.desktop_file_dirs) do
@@ -394,7 +395,7 @@ end
 -----------------------------------------------------------------------------------------------------------------------
 function dfparser.program_list(style)
 
-	local style = redutil.table.merge(default_style(), style or {})
+	style = redutil.table.merge(default_style(), style or {})
 
 	local programs = {}
 	for _, path in ipairs(style.desktop_file_dirs) do

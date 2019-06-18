@@ -20,6 +20,8 @@ local ipairs = ipairs
 local table = table
 local string = string
 local math = math
+local unpack = unpack or table.unpack
+
 local beautiful = require("beautiful")
 local tag = require("awful.tag")
 local awful = require("awful")
@@ -71,7 +73,7 @@ local function default_style()
 		titleline      = { font = "Sans 16 bold", height = 35 },
 		stateline      = { height = 35 },
 		state_iconsize = { width = 20, height = 20 },
-		sep_margin     = { 3, 3, 5, 5 },
+		separator      = { marginh = { 3, 3, 5, 5 } },
 		tagmenu        = { icon_margin = { 2, 2, 2, 2 } },
 		hide_action    = { min = true,
 		                   move = true,
@@ -90,7 +92,8 @@ local function default_style()
 		timeout      = 0.5,
 		sl_highlight = false, -- single line highlight
 		color        = { border = "#575757", text = "#aaaaaa", main = "#b1222b", highlight = "#eeeeee",
-		                 wibox = "#202020", gray = "#575757", urgent = "#32882d" }
+		                 wibox = "#202020", gray = "#575757", urgent = "#32882d" },
+		shape        = nil
 
 	}
 	style.winmenu.menu = {
@@ -110,7 +113,7 @@ end
 --------------------------------------------------------------------------------
 local function get_state(c_group, style)
 
-	local style = style or {}
+	style = style or {}
 	local names = style.appnames or {}
 	local chars = style.char_digit
 
@@ -124,7 +127,7 @@ local function get_state(c_group, style)
 		table.insert(state.list, { focus = client.focus == c, urgent = c.urgent, minimized = c.minimized })
 	end
 
-	local class = c_group[1].class or "Untitled"
+	local class = c_group[1].class or "Undefined"
 	state.text = names[class] or string.upper(string.sub(class, 1, chars))
 	state.num = #c_group
 	state.icon = style.custom_icon and style.icons[style.iconnames[class] or string.lower(class)]
@@ -176,24 +179,28 @@ local function tagmenu_update(c, menu, submenu_index, style)
 			-- set layout icon for every tag
 			local l = awful.layout.getname(awful.tag.getproperty(t, "layout"))
 
-			for _, index in ipairs(submenu_index) do
-				if menu.items[index].child.items[k] and menu.items[index].child.items[k].icon then
-					menu.items[index].child.items[k].icon:set_image(style.layout_icon[l] or style.layout_icon.unknown)
-				end
-			end
-
-			-- set "checked" icon if tag active for given client
-			-- otherwise set empty icon
+			local check_icon = style.micon.blank
 			if c then
 				local client_tags = c:tags()
-				local check_icon = awful.util.table.hasitem(client_tags, t) and style.micon.check
-				                   or style.micon.blank
+				check_icon = awful.util.table.hasitem(client_tags, t) and style.micon.check or check_icon
+			end
 
-				for _, index in ipairs(submenu_index) do
-					if menu.items[index].child.items[k] and menu.items[index].child.items[k].right_icon then
-						menu.items[index].child.items[k].right_icon:set_image(check_icon)
+			for _, index in ipairs(submenu_index) do
+				local submenu = menu.items[index].child
+				if submenu.items[k].icon then
+					submenu.items[k].icon:set_image(style.layout_icon[l] or style.layout_icon.unknown)
+				end
+
+				-- set "checked" icon if tag active for given client
+				-- otherwise set empty icon
+				if c then
+					if submenu.items[k].right_icon then
+						submenu.items[k].right_icon:set_image(check_icon)
 					end
 				end
+
+				-- update position of any visible submenu
+				if submenu.wibox.visible then submenu:show() end
 			end
 		end
 	end
@@ -269,7 +276,7 @@ end
 local function visible_clients(filter, screen)
 	local clients = {}
 
-	for i, c in ipairs(client.get()) do
+	for _, c in ipairs(client.get()) do
 		local hidden = c.skip_taskbar or c.hidden or c.type == "splash" or c.type == "dock" or c.type == "desktop"
 
 		if not hidden and filter(c, screen) then
@@ -288,11 +295,11 @@ local function group_task(clients, need_group)
 
 	for _, c in ipairs(clients) do
 		if need_group then
-			local index = awful.util.table.hasitem(classes, c.class)
+			local index = awful.util.table.hasitem(classes, c.class or "Undefined")
 			if index then
 				table.insert(client_groups[index], c)
 			else
-				table.insert(classes, c.class)
+				table.insert(classes, c.class or "Undefined")
 				table.insert(client_groups, { c })
 			end
 		else
@@ -335,6 +342,14 @@ local function tasktip_line(style)
 	-- tasktip line metods
 	function line:set_text(text)
 		line.tb:set_markup(text)
+
+		if style.max_width then
+			line.tb:set_ellipsize("middle")
+			local _, line_h = line.tb:get_preferred_size()
+			line.tb:set_forced_height(line_h)
+			line.tb:set_forced_width(style.max_width)
+		end
+
 		line.field:set_fg(style.color.text)
 		line.field:set_bg(style.color.wibox)
 	end
@@ -372,6 +387,10 @@ local function switch_focus(list, is_reverse)
 	-- set focus to new task
 	client.focus = list[index]
 	list[index]:raise()
+end
+
+local function client_group_sort_by_class(a, b)
+	return (a[1].class or "Undefined") < (b[1].class or "Undefined")
 end
 
 -- Build or update tasklist.
@@ -426,6 +445,9 @@ local function construct_tasktip(c_group, layout, data, buttons, style)
 
 		line:set_text(awful.util.escape(c.name) or "Untitled")
 		tb_w, tb_h = line.tb:get_preferred_size()
+		if line.tb.forced_width then
+			tb_w = math.min(line.tb.forced_width, tb_w)
+		end
 
 		-- set state highlight only for grouped tasks
 		if #c_group > 1 or style.sl_highlight then
@@ -513,15 +535,15 @@ function redtasklist.winmenu:init(style)
 	local stateboxes = state_line_construct(state_icons, stateline_horizontal, style)
 
 	-- update function for state icons
-	local function stateboxes_update(c, state_icons, stateboxes)
-		for i, v in ipairs(state_icons) do
-			stateboxes[i]:set_color(v.indicator(c) and style.color.main or style.color.gray)
+	local function stateboxes_update(c, icons, boxes)
+		for i, v in ipairs(icons) do
+			boxes[i]:set_color(v.indicator(c) and style.color.main or style.color.gray)
 		end
 	end
 
 	-- Separators config
 	------------------------------------------------------------
-	local menusep = { widget = separator.horizontal({ margin = style.sep_margin }) }
+	local menusep = { widget = separator.horizontal(style.separator) }
 
 	-- Construct tag submenus ("move" and "add")
 	------------------------------------------------------------
@@ -554,7 +576,7 @@ function redtasklist.winmenu:init(style)
 			{ "Minimize",        minimize, nil, style.icon.minimize or style.icon.unknown },
 			{ "Close",           close,    nil, style.icon.close or style.icon.unknown    },
 			menusep,
-			{ widget = stateline }
+			{ widget = stateline, focus = true }
 		}
 	})
 
@@ -562,7 +584,7 @@ function redtasklist.winmenu:init(style)
 	--------------------------------------------------------------------------------
 	function self:update(c)
 		if self.menu.wibox.visible then
-			classbox:set_text(c.class or "Unknown")
+			classbox:set_text(c.class or "Undefined")
 			stateboxes_update(c, state_icons, stateboxes)
 			tagmenu_update(c, self.menu, { 1, 2 }, style)
 		end
@@ -616,7 +638,8 @@ function redtasklist.tasktip:init(buttons, style)
 		type = "tooltip",
 		bg   = style.color.wibox,
 		border_width = style.border_width,
-		border_color = style.color.border
+		border_color = style.color.border,
+		shape        = style.shape
 	})
 
 	self.wibox.ontop = true
@@ -685,7 +708,7 @@ function redtasklist.new(args, style)
 	local cs = args.screen
 	local filter = args.filter or redtasklist.filter.currenttags
 
-	local style = redutil.table.merge(default_style(), style or {})
+	style = redutil.table.merge(default_style(), style or {})
 	if style.custom_icon then style.icons = dfparser.icon_list(style.parser) end
 	if style.task.width  then style.width = style.task.width end
 
@@ -704,6 +727,7 @@ function redtasklist.new(args, style)
 		local clients = visible_clients(filter, cs)
 		local client_groups = group_task(clients, style.need_group)
 
+		table.sort(client_groups, client_group_sort_by_class)
 		last.screen_clients[cs] = sort_list(client_groups)
 
 		tasklist_construct(client_groups, tasklist, data, args.buttons, style)
@@ -723,7 +747,6 @@ function redtasklist.new(args, style)
 	tasklist.queue:connect_signal("timeout", function() update(cs); tasklist.queue:stop() end)
 
 	-- Signals setup
-	-- TODO: split signals for screens
 	--------------------------------------------------------------------------------
 	local client_signals = {
 		"property::urgent", "property::sticky", "property::minimized",
@@ -742,7 +765,7 @@ function redtasklist.new(args, style)
 	-- force hide pop-up widgets if any client was closed
 	-- because last vars may be no actual anymore
 	client.connect_signal("unmanage",
-		function(c)
+		function()
 			tasklist_update()
 			redtasklist.tasktip.wibox.visible = false
 			redtasklist.winmenu.menu:hide()
@@ -763,7 +786,7 @@ end
 
 -- focus/minimize
 function redtasklist.action.select(args)
-	local args = args or {}
+	args = args or {}
 	local state = get_state(args.group)
 
 	if state.focus then
@@ -780,23 +803,23 @@ end
 
 -- close all in group
 function redtasklist.action.close(args)
-	local args = args or {}
-	for i, c in ipairs(args.group) do c:kill() end
+	args = args or {}
+	for _, c in ipairs(args.group) do c:kill() end
 end
 
 -- show/close winmenu
 function redtasklist.action.menu(args)
-	local args = args or {}
+	args = args or {}
 	redtasklist.winmenu:show(args.group, args.gap)
 end
 
 -- switch to next task
-function redtasklist.action.switch_next(args)
+function redtasklist.action.switch_next()
 	switch_focus(last.screen_clients[mouse.screen])
 end
 
 -- switch to previous task
-function redtasklist.action.switch_prev(args)
+function redtasklist.action.switch_prev()
 	switch_focus(last.screen_clients[mouse.screen], true)
 end
 
@@ -808,7 +831,7 @@ end
 
 -- To include all clients
 --------------------------------------------------------------------------------
-function redtasklist.filter.allscreen(c, screen)
+function redtasklist.filter.allscreen()
 	return true
 end
 
@@ -826,7 +849,7 @@ function redtasklist.filter.currenttags(c, screen)
 
 	local tags = screen.tags
 
-	for k, t in ipairs(tags) do
+	for _, t in ipairs(tags) do
 		if t.selected then
 			local ctags = c:tags()
 
@@ -848,7 +871,7 @@ function redtasklist.filter.minimizedcurrenttags(c, screen)
 
 	local tags = screen.tags
 
-	for k, t in ipairs(tags) do
+	for _, t in ipairs(tags) do
 		if t.selected then
 			local ctags = c:tags()
 

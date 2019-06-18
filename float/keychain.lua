@@ -34,8 +34,9 @@ local function default_style()
 		geometry        = { width = 220, height = 60 },
 		font            = "Sans 14 bold",
 		border_width    = 2,
-		keytip          = { geometry = { width = 500, height = 600 }, exit = false },
-		color           = { border = "#575757", wibox = "#202020" }
+		keytip          = { geometry = { width = 500 }, exit = false },
+		color           = { border = "#575757", wibox = "#202020" },
+		shape           = nil
 	}
 
 	return redflat.util.table.merge(style, redflat.util.table.check(beautiful, "float.keychain") or {})
@@ -46,13 +47,13 @@ end
 local function build_label(item)
 	if #item[1] == 0 then return item[2] end
 
-	local label = ""
-	for _, m in ipairs(item[1]) do label = label .. label_pattern[m] .. "-" end
-	return label .. item[2]
+	local mods = {}
+	for _, m in ipairs(item[1]) do mods[#mods + 1] = label_pattern[m] end
+	return string.format("%s-%s", table.concat(mods, '-'), item[2])
 end
 
 local function build_tip(store, item, prefix)
-	local prefix = prefix or build_label(item)
+	prefix = prefix or build_label(item)
 	for _, k in ipairs(item[3]) do
 		local p = prefix .. " " .. build_label(k)
 		if type(k[3]) == "table" then
@@ -96,7 +97,7 @@ function keychain:init(style)
 	self.parents = {}
 	self.sequence = ""
 
-	local style = redflat.util.table.merge(default_style(), style or {})
+	style = redflat.util.table.merge(default_style(), style or {})
 	self.style = style
 
 	-- Wibox
@@ -105,7 +106,8 @@ function keychain:init(style)
 		ontop        = true,
 		bg           = style.color.wibox,
 		border_width = style.border_width,
-		border_color = style.color.border
+		border_color = style.color.border,
+		shape        = style.shape
 	})
 	self.wibox:geometry(style.geometry)
 

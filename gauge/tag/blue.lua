@@ -9,7 +9,6 @@
 local setmetatable = setmetatable
 local math = math
 
-local awful = require("awful")
 local wibox = require("wibox")
 local beautiful = require("beautiful")
 local color = require("gears.color")
@@ -24,13 +23,12 @@ local bluetag = { mt = {} }
 -----------------------------------------------------------------------------------------------------------------------
 local function default_style()
 	local style = {
-		width    = 80,
-		font     = { font = "Sans", size = 16, face = 0, slant = 0 },
-		text_gap = 32,
-		point    = { height = 4, gap = 8, dx = 6, width = 40 },
-		show_min = false,
-		color    = { main   = "#b1222b", gray = "#575757", icon = "#a0a0a0", urgent = "#32882d",
-		             wibox = "#202020" }
+		width      = 80,
+		font       = { font = "Sans", size = 16, face = 0, slant = 0 },
+		text_shift = 32,
+		point      = { height = 4, gap = 8, dx = 6, width = 40 },
+		show_min   = false,
+		color      = { main  = "#b1222b", gray = "#575757", icon = "#a0a0a0", urgent = "#32882d" }
 	}
 
 	return redutil.table.merge(style, redutil.table.check(beautiful, "gauge.tag.blue") or {})
@@ -44,7 +42,7 @@ function bluetag.new(style)
 
 	-- Initialize vars
 	--------------------------------------------------------------------------------
-	local style = redutil.table.merge(default_style(), style or {})
+	style = redutil.table.merge(default_style(), style or {})
 
 	-- updating values
 	local data = {
@@ -60,17 +58,17 @@ function bluetag.new(style)
 	------------------------------------------------------------
 	function widg:set_state(state)
 		data.state = state
-		self:emit_signal("widget::updated")
+		self:emit_signal("widget::redraw_needed")
 	end
 
 	function widg:set_width(width)
 		data.width = width
-		self:emit_signal("widget::updated")
+		self:emit_signal("widget::redraw_needed")
 	end
 
 	-- Fit
 	------------------------------------------------------------
-	function widg:fit(context, width, height)
+	function widg:fit(_, width, height)
 		if data.width then
 			return math.min(width, data.width), height
 		else
@@ -80,7 +78,7 @@ function bluetag.new(style)
 
 	-- Draw
 	------------------------------------------------------------
-	function widg:draw(context, cr, width, height)
+	function widg:draw(_, cr, width)
 		local n = #data.state.list
 
 		-- text
@@ -90,7 +88,7 @@ function bluetag.new(style)
 			or style.color.icon
 		))
 		redutil.cairo.set_font(cr, style.font)
-		redutil.cairo.textcentre.horizontal(cr, { width / 2, style.text_gap }, data.state.text)
+		redutil.cairo.textcentre.horizontal(cr, { width / 2, style.text_shift }, data.state.text)
 
 		-- occupied mark
 		local x = (width - style.point.width) / 2

@@ -11,8 +11,7 @@
 
 -- Grab environment
 -----------------------------------------------------------------------------------------------------------------------
-local setmetatable = setmetatable
-local type = type
+local unpack = unpack or table.unpack
 
 local awful = require("awful")
 local beautiful = require("beautiful")
@@ -29,7 +28,7 @@ local redtip = require("redflat.float.hotkeys")
 local apprunner = { applist = {}, command = "", keys = {} }
 
 local programs = {}
-local lastquery = nil
+local lastquery
 
 -- key bindings
 apprunner.keys.move = {
@@ -47,6 +46,15 @@ apprunner.keys.action = {
 	{
 		{ "Mod4" }, "F1", function() redtip:show() end,
 		{ description = "Show hotkeys helper", group = "Action" }
+	},
+	-- fake keys used for hotkeys helper
+	{
+		{}, "Enter", nil,
+		{ description = "Activate item", group = "Action" }
+	},
+	{
+		{}, "Escape", nil,
+		{ description = "Close widget", group = "Action" }
 	},
 }
 
@@ -70,10 +78,11 @@ local function default_style()
 		name_font        = "Sans 12",
 		comment_font     = "Sans 12",
 		border_width     = 2,
-		keytip           = { geometry = { width = 400, height = 300 } },
+		keytip           = { geometry = { width = 400 } },
 		dimage           = redutil.base.placeholder(),
 		color            = { border = "#575757", text = "#aaaaaa", highlight = "#eeeeee", main = "#b1222b",
-		                     bg = "#161616", bg_second = "#181818", wibox = "#202020", icon = "a0a0a0" }
+		                     bg = "#161616", bg_second = "#181818", wibox = "#202020", icon = "a0a0a0" },
+		shape            = nil
 	}
 	return redutil.table.merge(style, redutil.table.check(beautiful, "float.apprunner") or {})
 end
@@ -112,7 +121,7 @@ local function construct_item(style)
 	-- Item functions
 	------------------------------------------------------------
 	function item:set(args)
-		local args = args or {}
+		args = args or {}
 
 		local name_text = awful.util.escape(args.Name) or ""
 		item.name:set_markup(name_text)
@@ -217,7 +226,7 @@ local function list_filtrate(query)
 	if lastquery ~= query then
 		programs.current = {}
 
-		for i, p in ipairs(programs.all) do
+		for _, p in ipairs(programs.all) do
 			if string.match(string.lower(p.Name), query) then
 				table.insert(programs.current, p)
 			end
@@ -254,9 +263,9 @@ end
 
 -- Keypress handler
 -----------------------------------------------------------------------------------------------------------------------
-local function keypressed_callback(mod, key, comm)
+local function keypressed_callback(mod, key)
 	for _, k in ipairs(apprunner.keys.all) do
-		if redutil.key.match_prompt(k, mod, key) then k[3](); return true end
+		if redutil.key.match_prompt(k, mod, key) and k[3] then k[3](); return true end
 	end
 	return false
 end
@@ -303,7 +312,7 @@ function apprunner:init()
 
 	local prompt_area_layout = wibox.container.constraint(prompt_area_horizontal, "exact", nil, style.title_height)
 
-	area_vertical = wibox.layout.align.vertical()
+	local area_vertical = wibox.layout.align.vertical()
 	area_vertical:set_top(prompt_area_layout)
 	area_vertical:set_middle(wibox.container.margin(self.applist.layout, 0, 0, style.border_margin[3]))
 	local area_layout = wibox.container.margin(area_vertical, unpack(style.border_margin))
@@ -314,7 +323,8 @@ function apprunner:init()
 		ontop        = true,
 		bg           = style.color.wibox,
 		border_width = style.border_width,
-		border_color = style.color.border
+		border_color = style.color.border,
+		shape        = style.shape
 	})
 
 	self.wibox:set_widget(area_layout)
@@ -354,7 +364,7 @@ end
 -- Set user hotkeys
 -----------------------------------------------------------------------------------------------------------------------
 function apprunner:set_keys(keys, layout)
-	local layout = layout or "all"
+	layout = layout or "all"
 	if keys then
 		self.keys[layout] = keys
 		if layout ~= "all" then self.keys.all = awful.util.table.join(self.keys.move, self.keys.action) end

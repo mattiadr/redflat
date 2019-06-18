@@ -1,5 +1,7 @@
 -- RedFlat util submodule
 
+local cairo = require("lgi").cairo
+local gears = require("gears")
 local wibox = require("wibox")
 local surface = require("gears.surface")
 
@@ -16,7 +18,7 @@ function base.buttons(buttons, object)
 	if buttons then
 		local btns = {}
 
-		for kb, b in ipairs(buttons) do
+		for _, b in ipairs(buttons) do
 			-- Create a proxy button object: it will receive the real
 			-- press and release events, and will propagate them the the
 			-- button object the user provided, but with the object as
@@ -34,15 +36,27 @@ end
 -- Create cairo surface from text (useful for themed icons replacement)
 --------------------------------------------------------------------------------
 function base.placeholder(args)
-	local args = args or {}
-	local tb = wibox.widget {
+	args = args or {}
+	local tb = wibox.widget({
 		markup = args.txt or "?",
 		align  = "center",
 		valign = "center",
 		widget = wibox.widget.textbox
-	}
+	})
 
 	return surface.widget_to_surface(tb, args.width or 24, args.height or 24)
+end
+
+-- Create rectangle cairo surface image
+--------------------------------------------------------------------------------
+function base.image(width, height, geometry, color)
+	local image = cairo.ImageSurface.create(cairo.Format.ARGB32, width, height)
+	local cr = cairo.Context(image)
+	cr:set_source(gears.color(color or "#000000"))
+	cr:rectangle(geometry.x, geometry.y, geometry.width, geometry.height)
+	cr:fill()
+
+	return image
 end
 
 

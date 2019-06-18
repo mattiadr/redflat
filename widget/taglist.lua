@@ -19,7 +19,6 @@ local string = string
 local awful = require("awful")
 local wibox = require("wibox")
 local beautiful = require("beautiful")
-local layout = require("awful.layout")
 local timer = require("gears.timer")
 
 local redutil = require("redflat.util")
@@ -51,19 +50,21 @@ end
 local function get_state(t)
 	local state = { focus = false, urgent = false, list = {} }
 	local client_list = t:clients()
+	local client_count = 0
 
 	for _, c in pairs(client_list) do
 		state.focus     = state.focus or client.focus == c
 		state.urgent    = state.urgent or c.urgent
 		--[[ remove this
 		if not c.skip_taskbar then
+			client_count = client_count + 1
 			table.insert(state.list, { focus = client.focus == c, urgent = c.urgent, minimized = c.minimized })
 		end
 		--]]
 	end
 
 	state.active = t.selected
-	state.occupied = #client_list > 0 and not (#client_list == 1 and state.focus)
+	state.occupied = client_count > 0 and not (client_count == 1 and state.focus)
 	state.text = string.upper(t.name)
 	state.layout = awful.tag.getproperty(t, "layout")
 
@@ -95,6 +96,15 @@ local function filtrate_tags(screen, filter)
 	return tags
 end
 
+-- Layout composition
+--------------------------------------------------------------------------------
+local function base_pack(layout, widg, i, tags, style)
+	layout:add(widg)
+	if style.separator and i < #tags then
+		layout:add(style.separator)
+	end
+end
+
 
 -- Create a new taglist widget
 -----------------------------------------------------------------------------------------------------------------------
@@ -105,12 +115,13 @@ function taglist.new(args, style)
 	-- Initialize vars
 	--------------------------------------------------------------------------------
 	local cs = args.screen
-	local layout = wibox.layout.fixed.horizontal()
+	local layout = args.layout or wibox.layout.fixed.horizontal()
 	local data = setmetatable({}, { __mode = 'k' })
 	local filter = args.filter or taglist.filter.all
 	local hint = args.hint or make_tip
+	local pack = args.pack or base_pack
 
-	local style = redutil.table.merge(default_style(), style or {})
+	style = redutil.table.merge(default_style(), style or {})
 
 	-- Set tooltip
 	--------------------------------------------------------------------------------
@@ -150,10 +161,7 @@ function taglist.new(args, style)
 			widg.tip = hint(t)
 
 			-- add widget and separator to base layout
-			layout:add(widg)
-			if style.separator and i < #tags then
-				layout:add(style.separator)
-			end
+			pack(layout, widg, i, tags, style)
 		end
 		------------------------------------------------------------
 
@@ -183,7 +191,7 @@ function taglist.new(args, style)
 	for _, sg in ipairs(tag_signals) do awful.tag.attached_connect_signal(nil, sg, ut) end
 	for _, sg in ipairs(client_signals) do client.connect_signal(sg, uc) end
 
-	client.connect_signal("property::screen", function(c) update(cs) end) -- dirty
+	client.connect_signal("property::screen", function() update(cs) end) -- dirty
 
 	--------------------------------------------------------------------------------
 	update(cs) -- create taglist widget
@@ -194,11 +202,11 @@ end
 -- @param t The awful.tag
 -- @param args unused list of extra arguments
 -----------------------------------------------------------------------------------------------------------------------
-function taglist.filter.noempty(t, args) -- to include all nonempty tags on the screen.
+function taglist.filter.noempty(t) -- to include all nonempty tags on the screen.
 	return #t:clients() > 0 or t.selected
 end
 
-function taglist.filter.all(t, args) -- to include all tags on the screen.
+function taglist.filter.all() -- to include all tags on the screen.
 	return true
 end
 

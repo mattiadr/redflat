@@ -17,10 +17,8 @@ local setmetatable = setmetatable
 local ipairs = ipairs
 local table = table
 local beautiful = require("beautiful")
-local tag = require("awful.tag")
 local awful = require("awful")
 local wibox = require("wibox")
-local timer = require("gears.timer")
 
 local redutil = require("redflat.util")
 local separator = require("redflat.gauge.separator")
@@ -51,7 +49,7 @@ local function default_style()
 		stateline       = { height = 35 },
 		state_iconsize  = { width = 20, height = 20 },
 		action_iconsize = { width = 18, height = 18 },
-		sep_margin      = { horizontal = { 3, 3, 5, 5 }, vertical = { 3, 3, 3, 3 } },
+		separator       = { marginh = { 3, 3, 5, 5 }, marginv = { 3, 3, 3, 3 } },
 		tagmenu         = { icon_margin = { 2, 2, 2, 2 } },
 		hide_action     = { move = true,
 		                    add = false,
@@ -70,7 +68,7 @@ local function default_style()
 		nohide       = true
 	}
 
-	return redutil.table.merge(style, redutil.table.check(beautiful, "widget.clientmenu") or {})
+	return redutil.table.merge(style, redutil.table.check(beautiful, "float.clientmenu") or {})
 end
 
 -- Support functions
@@ -120,24 +118,28 @@ local function tagmenu_update(c, menu, submenu_index, style)
 			-- set layout icon for every tag
 			local l = awful.layout.getname(awful.tag.getproperty(t, "layout"))
 
-			for _, index in ipairs(submenu_index) do
-				if menu.items[index].child.items[k].icon then
-					menu.items[index].child.items[k].icon:set_image(style.layout_icon[l] or style.layout_icon.unknown)
-				end
-			end
-
-			-- set "checked" icon if tag active for given client
-			-- otherwise set empty icon
+			local check_icon = style.micon.blank
 			if c then
 				local client_tags = c:tags()
-				local check_icon = awful.util.table.hasitem(client_tags, t) and style.micon.check
-				                   or style.micon.blank
+				check_icon = awful.util.table.hasitem(client_tags, t) and style.micon.check or check_icon
+			end
 
-				for _, index in ipairs(submenu_index) do
-					if menu.items[index].child.items[k].right_icon then
-						menu.items[index].child.items[k].right_icon:set_image(check_icon)
+			for _, index in ipairs(submenu_index) do
+				local submenu = menu.items[index].child
+				if submenu.items[k].icon then
+					submenu.items[k].icon:set_image(style.layout_icon[l] or style.layout_icon.unknown)
+				end
+
+				-- set "checked" icon if tag active for given client
+				-- otherwise set empty icon
+				if c then
+					if submenu.items[k].right_icon then
+						submenu.items[k].right_icon:set_image(check_icon)
 					end
 				end
+
+				-- update position of any visible submenu
+				if submenu.wibox.visible then submenu:show() end
 			end
 		end
 	end
@@ -175,7 +177,7 @@ end
 -- Function to construct menu line with action icons (minimize, close)
 --------------------------------------------------------------------------------
 local function action_line_construct(setup_layout, style)
-	local sep = separator.vertical({ margin = style.sep_margin.vertical })
+	local sep = separator.vertical(style.separator)
 
 	local function actionbox_construct(icon, action)
 		local iconbox = svgbox(icon, nil, style.color.icon)
@@ -241,9 +243,7 @@ end
 -- Calculate menu position
 --------------------------------------------------------------------------------
 local function coords_calc(menu)
-	local coords = {}
-
-	coords = mouse.coords()
+	local coords = mouse.coords()
 	coords.x = coords.x - menu.wibox.width / 2 - menu.wibox.border_width
 
 	return coords
@@ -252,7 +252,7 @@ end
 -- Initialize window menu widget
 -----------------------------------------------------------------------------------------------------------------------
 function clientmenu:init(style)
-	local style = redutil.table.merge(default_style(), style or {})
+	style = redutil.table.merge(default_style(), style or {})
 
 	self.hide_check = function(action)
 		if style.hide_action[action] then self.menu:hide() end
@@ -302,15 +302,15 @@ function clientmenu:init(style)
 	local stateboxes = state_line_construct(state_icons, stateline_horizontal, style)
 
 	-- update function for state icons
-	local function stateboxes_update(c, state_icons, stateboxes)
-		for i, v in ipairs(state_icons) do
-			stateboxes[i]:set_color(v.indicator(c) and style.color.main or style.color.gray)
+	local function stateboxes_update(c, icons, boxes)
+		for i, v in ipairs(icons) do
+			boxes[i]:set_color(v.indicator(c) and style.color.main or style.color.gray)
 		end
 	end
 
 	-- Separators config
 	------------------------------------------------------------
-	local menusep = { widget = separator.horizontal({ margin = style.sep_margin.horizontal }) }
+	local menusep = { widget = separator.horizontal(style.separator) }
 
 	-- menu item actions
 	self.movemenu_action = function(t)
@@ -336,7 +336,7 @@ function clientmenu:init(style)
 			{ "Move to tag", { items = movemenu_items, theme = style.tagmenu } },
 			{ "Add to tag",  { items = addmenu_items,  theme = style.tagmenu } },
 			menusep,
-			{ widget = stateline }
+			{ widget = stateline, focus = true }
 		}
 	})
 

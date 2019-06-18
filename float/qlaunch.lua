@@ -7,7 +7,7 @@
 -- Grab environment
 -----------------------------------------------------------------------------------------------------------------------
 local table = table
-local unpack = unpack
+local unpack = unpack or table.unpack
 local string = string
 local math = math
 local io = io
@@ -52,6 +52,10 @@ qlaunch.keys.action = {
 		{ description = "Clear selected key", group = "Action" }
 	},
 	{
+		{}, "r", function() qlaunch:load_config(true) end,
+		{ description = "Reload config from disk", group = "Action" }
+	},
+	{
 		{ "Mod4" }, "F1", function() redtip:show() end,
 		{ description = "Show hotkeys helper", group = "Action" }
 	},
@@ -88,9 +92,10 @@ local function default_style()
 		configfile      = os.getenv("HOME") .. "/.cache/awesome/applist",
 		label_font      = "Sans 14",
 		border_width    = 2,
-		keytip          = { geometry = { width = 500, height = 400 }, exit = false },
+		keytip          = { geometry = { width = 500 }, exit = false },
 		color           = { border = "#575757", text = "#aaaaaa", main = "#b1222b", urgent = "#32882d",
-		                    wibox  = "#202020", icon = "#a0a0a0", bg   = "#161616", gray   = "#575757" }
+		                    wibox  = "#202020", icon = "#a0a0a0", bg   = "#161616", gray   = "#575757" },
+		shape           = nil
 	}
 
 	return redutil.table.merge(style, redutil.table.check(beautiful, "float.qlaunch") or {})
@@ -130,7 +135,7 @@ end
 
 -- Check if file exist
 ------------------------------------------------------------
-function is_file_exists(file)
+local function is_file_exists(file)
 	local f = io.open(file, "r")
 	if f then f:close(); return true else return false end
 end
@@ -140,7 +145,7 @@ end
 
 -- Build application state indicator
 --------------------------------------------------------------------------------
-function build_state_indicator(style)
+local function build_state_indicator(style)
 
 	-- Initialize vars
 	------------------------------------------------------------
@@ -164,18 +169,18 @@ function build_state_indicator(style)
 		for _, c in ipairs(clist) do
 			table.insert(data.state, { focused = client.focus == c, urgent = c.urgent, minimized = c.minimized })
 		end
-		self:emit_signal("widget::updated")
+		self:emit_signal("widget::redraw_needed")
 	end
 
 	-- Fit
 	------------------------------------------------------------
-	function widg:fit(context, width, height)
+	function widg:fit(_, width, height)
 		return data.width or width, data.height or height
 	end
 
 	-- Draw
 	------------------------------------------------------------
-	function widg:draw(context, cr, width, height)
+	function widg:draw(_, cr, width, height)
 		local n = #data.state
 		local x0 = (width - n * style.state.size - (n - 1) * style.state.gap) / 2
 		local y0 = (height - style.state.size) / 2
@@ -280,6 +285,7 @@ local function build_switcher(keys, style)
 			self.items[key].svgbox:set_image(icon)
 			if style.recoloring then self.items[key].svgbox:set_color(style.color.icon) end
 		end
+		self:set_state(store)
 	end
 
 	function widg:set_state(store)
@@ -294,7 +300,7 @@ local function build_switcher(keys, style)
 		self.selected = nil
 	end
 
-	function widg:check_key(store, key, mod)
+	function widg:check_key(key, mod)
 		if self.items[key] then
 			if self.selected then self.items[self.selected].background:set_bg(style.color.bg) end
 			self.items[key].background:set_bg(style.color.main)
@@ -322,14 +328,15 @@ function qlaunch:init(args, style)
 
 	-- Init vars
 	------------------------------------------------------------
-	local args = args or {}
+	args = args or {}
 	local keys = args.keys or switcher_keys
 
-	local style = redutil.table.merge(default_style(), style or {})
+	style = redutil.table.merge(default_style(), style or {})
 	self.style = style
+	self.default_switcher_keys = keys
 	self.icon_db = redflat.service.dfparser.icon_list(style.parser)
 
-	self:load_config(keys)
+	self:load_config()
 
 	-- Wibox
 	------------------------------------------------------------
@@ -337,7 +344,8 @@ function qlaunch:init(args, style)
 		ontop        = true,
 		bg           = style.color.wibox,
 		border_width = style.border_width,
-		border_color = style.color.border
+		border_color = style.color.border,
+		shape        = style.shape
 	})
 	self.wibox:geometry(style.geometry)
 	redutil.placement.centered(self.wibox, nil, screen[mouse.screen].workarea)
@@ -357,7 +365,7 @@ function qlaunch:init(args, style)
 		for _, k in ipairs(self.keys.all) do
 			if redutil.key.match_grabber(k, mod, key) then k[3](); return end
 		end
-		self.switcher:check_key(self.store, key, mod)
+		self.switcher:check_key(key, mod)
 	end
 
 	-- Connect additional signals
@@ -406,7 +414,7 @@ function qlaunch:run_or_raise(key, forced_run)
 
 	if cnum == 0 or forced_run then
 		-- open new application
-		if self.store[key].run ~= "" then awful.util.spawn_with_shell(self.store[key].run) end
+		if self.store[key].run ~= "" then awful.spawn.with_shell(self.store[key].run) end
 	elseif cnum == 1 then
 		-- switch to sole app
 		focus_and_raise(clients[1])
@@ -442,8 +450,8 @@ function qlaunch:set_new_app(key, c)
 		redflat.float.notify:show(note)
 	end
 
-	self.switcher:update(self.store, self.icon_db)
 	self.switcher:reset()
+	self.switcher:update(self.store, self.icon_db)
 end
 
 -- Save information about last focused client in widget store
@@ -460,14 +468,19 @@ end
 
 -- Application list save/load
 --------------------------------------------------------------------------------
-function qlaunch:load_config(default_keys)
+function qlaunch:load_config(need_reset)
 	if is_file_exists(self.style.configfile) then
 		for line in io.lines(self.style.configfile) do
 			local key, app, run = string.match(line, "key=(.+);app=(.*);run=(.*);")
 			self.store[key] = { app = app, run = run }
 		end
 	else
-		self.store = default_keys
+		self.store = self.default_switcher_keys
+	end
+
+	if need_reset then
+		self.switcher:reset()
+		self.switcher:update(self.store, self.icon_db)
 	end
 end
 
@@ -482,7 +495,7 @@ end
 -- Set user hotkeys
 -----------------------------------------------------------------------------------------------------------------------
 function qlaunch:set_keys(keys, layout)
-	local layout = layout or "all"
+	layout = layout or "all"
 	if keys then
 		self.keys[layout] = keys
 		if layout ~= "all" then self.keys.all = awful.util.table.join({}, self.keys.action) end

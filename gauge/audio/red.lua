@@ -7,11 +7,11 @@
 -- Grab environment
 -----------------------------------------------------------------------------------------------------------------------
 local setmetatable = setmetatable
-local math = math
 local string = string
+local math = math
+
 local wibox = require("wibox")
 local beautiful = require("beautiful")
-local color = require("gears.color")
 
 local redutil = require("redflat.util")
 local svgbox = require("redflat.gauge.svgbox")
@@ -25,7 +25,8 @@ local audio = { mt = {} }
 -----------------------------------------------------------------------------------------------------------------------
 local function default_style()
 	local style = {
-		icon  = {},
+		icon  = { volume = redutil.base.placeholder(), mute = redutil.base.placeholder() },
+		step  = 0.05,
 		color = { main = "#b1222b", icon = "#a0a0a0", mute = "#404040" }
 	}
 	return redutil.table.merge(style, redutil.table.check(beautiful, "gauge.audio.red") or {})
@@ -44,19 +45,20 @@ function audio.new(style)
 
 	-- Initialize vars
 	--------------------------------------------------------------------------------
-	local style = redutil.table.merge(default_style(), style or {})
+	style = redutil.table.merge(default_style(), style or {})
 
 	-- Icon widgets
 	------------------------------------------------------------
 	local icon = {}
-	icon.ready = svgbox(style.icon.ready or redutil.base.placeholder())
+	icon.ready = svgbox(style.icon.volume)
 	icon.ready:set_color(style.color.icon)
-	icon.mute = svgbox(style.icon.mute or redutil.base.placeholder())
+	icon.mute = svgbox(style.icon.mute)
 	icon.mute:set_color(style.color.mute)
 
 	-- Create widget
 	--------------------------------------------------------------------------------
 	local widg = wibox.container.background(icon.ready)
+	widg._data = { level = 0 }
 
 	-- User functions
 	------------------------------------------------------------
@@ -64,8 +66,13 @@ function audio.new(style)
 		if x > 1 then x = 1 end
 
 		if self.widget._image then
-			local w = self.widget._image.width
-			icon.ready:set_color(pattern_string(w, x, style.color.main, style.color.icon))			
+			local level = math.floor(x / style.step) * style.step
+
+			if level ~= self._data.level then
+				self._data.level = level
+				local w = self.widget._image.width
+				icon.ready:set_color(pattern_string(w, level, style.color.main, style.color.icon))
+			end
 		end
 	end
 
