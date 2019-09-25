@@ -202,7 +202,7 @@ end
 -- Sort function
 --------------------------------------------------------------------------------
 local function sort_by_query(t, query)
-	l = string.len(query)
+	local l = string.len(query)
 
 	local function starts(e)
 		return string.lower(string.sub(e.Name, 1, l)) == query

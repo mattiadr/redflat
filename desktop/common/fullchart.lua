@@ -8,9 +8,6 @@
 -----------------------------------------------------------------------------------------------------------------------
 local setmetatable = setmetatable
 local wibox = require("wibox")
-local awful = require("awful")
-local beautiful = require("beautiful")
-local color = require("gears.color")
 
 local dcommon = require("redflat.desktop.common")
 local redutil = require("redflat.util")
@@ -30,8 +27,8 @@ local fullchart = { mt = {} }
 function fullchart.new(label_style, dashbar_style, chart_style, barvalue_height, maxm)
 
 	local widg = {}
-	local chart_style = redutil.table.merge(chart_style, { maxm = maxm })
-	local dashbar_style = redutil.table.merge(dashbar_style, { maxm = maxm })
+	chart_style = redutil.table.merge(chart_style, { maxm = maxm })
+	dashbar_style = redutil.table.merge(dashbar_style, { maxm = maxm })
 
 	-- construct layout with indicators
 	widg.barvalue = dcommon.barvalue(dashbar_style, label_style)

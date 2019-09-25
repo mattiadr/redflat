@@ -7,7 +7,6 @@
 -- Grab environment
 -----------------------------------------------------------------------------------------------------------------------
 local math = math
-local unpack = unpack or table.unpack
 
 local awful = require("awful")
 local beautiful = require("beautiful")
@@ -63,6 +62,7 @@ end
 
 -- Parse raw key table
 --------------------------------------------------------------------------------
+--[[
 local keysort = function(a, b)
 	if a.length ~= b.length then
 		return a.length < b.length
@@ -70,6 +70,7 @@ local keysort = function(a, b)
 		return a.key < b.key
 	end
 end
+--]]
 
 local function parse(rawkeys, columns)
 	local keys = {}
@@ -79,7 +80,8 @@ local function parse(rawkeys, columns)
 	for _, k in ipairs(rawkeys) do if k[#k].description then table.insert(rk, k) end end
 
 	-- dirty trick for raw sorting
-	--[[local sp = {}
+	--[[
+	local sp = {}
 	for _, v in ipairs(rk) do
 		if not hasitem(sp, v[#v].group) then table.insert(sp, v[#v].group) end
 	end
@@ -90,7 +92,8 @@ local function parse(rawkeys, columns)
 		else
 			return a[2] < b[2]
 		end
-	end)]]
+	end)
+	--]]
 
 	-- count total lines with titles
 	local lines = 0

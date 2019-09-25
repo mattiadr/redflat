@@ -8,8 +8,6 @@
 -- Grab environment
 -----------------------------------------------------------------------------------------------------------------------
 local setmetatable = setmetatable
-local math = math
-local string = string
 
 local wibox = require("wibox")
 local beautiful = require("beautiful")
@@ -17,7 +15,6 @@ local timer = require("gears.timer")
 
 local redutil = require("redflat.util")
 local barpack = require("redflat.desktop.common.barpack")
-local system = require("redflat.system")
 
 -- Initialize tables for module
 -----------------------------------------------------------------------------------------------------------------------
@@ -46,9 +43,9 @@ function dashpack.new(args, geometry, style)
 	-- Initialize vars
 	--------------------------------------------------------------------------------
 	local dwidget = {}
-	local args = redutil.table.merge(default_args, args or {})
-	local geometry = redutil.table.merge(default_geometry, geometry or {})
-	local style = redutil.table.merge(default_style(), style or {})
+	args = redutil.table.merge(default_args, args or {})
+	geometry = redutil.table.merge(default_geometry, geometry or {})
+	style = redutil.table.merge(default_style(), style or {})
 
 	-- Create wibox
 	--------------------------------------------------------------------------------

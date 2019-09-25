@@ -89,7 +89,9 @@ function floatprompt:run()
 		end,
 		history_path = awful.util.getdir("cache") .. "/history",
 		history_max = 30,
-		completion_callback = function(command, cur_pos, ncomp) return awful.completion.shell(command, cur_pos, ncomp, "zsh") end,
+		completion_callback = function(command, cur_pos, ncomp)
+			return awful.completion.shell(command, cur_pos, ncomp, "zsh")
+		end,
 		done_callback = function () if not self.info then self.wibox.visible = false end end,
 	})
 end

@@ -485,8 +485,15 @@ function redtasklist.winmenu:init(style)
 		if style.hide_action[action] then self.menu:hide() end
 	end
 
-	local next_tab = function() local l = last.screen.selected_tag.layout; if l.client_to_tab then l:client_to_tab(last.client, false, false) end end
-	local new_tab  = function() local l = last.screen.selected_tag.layout; if l.client_to_tab then l:client_to_tab(last.client, true, false) end; self.menu:hide() end
+	local next_tab = function()
+		local l = last.screen.selected_tag.layout
+		if l.client_to_tab then l:client_to_tab(last.client, false, false) end
+	end
+	local new_tab  = function()
+		local l = last.screen.selected_tag.layout
+		if l.client_to_tab then l:client_to_tab(last.client, true, false) end
+		self.menu:hide()
+	end
 	local close    = function() last.client:kill(); self.menu:hide() end
 	local minimize = function() last.client.minimized = not last.client.minimized; self.hide_check("min") end
 	-- local maximize = function() last.client.maximized = not last.client.maximized; self.hide_check("max")end
